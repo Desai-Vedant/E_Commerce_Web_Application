@@ -46,7 +46,10 @@ function ViewSellerOrders() {
               };
             });
 
-          setOrders(enrichedOrders);
+          const sellerOrders = enrichedOrders.filter(
+            (order) => order.productName != "Unknown Product"
+          );
+          setOrders(sellerOrders);
         } else {
           setOrders([]);
         }

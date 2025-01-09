@@ -13,16 +13,37 @@ function ViewUserOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [orderDetails, setOrderDetails] = useState([]);
 
-  // Fetch orders from the backend
   const fetchOrders = async () => {
     try {
-      const response = await axios.post(
+      const orderResponse = await axios.post(
         "http://localhost:3000/order/view",
         {},
         { withCredentials: true }
       );
-      setOrders(response.data.orders || []);
+      const ord = orderResponse.data.orders || [];
+
+      const productResponse = await axios.post(
+        "http://localhost:3000/product/view",
+        {},
+        { withCredentials: true }
+      );
+      const prod = productResponse.data.products || [];
+
+      const ordersData = ord
+        .filter((order) => order.isCompleted) // Fixed filter
+        .map((order) => {
+          const product = prod.find((p) => p._id === order.productId);
+          return {
+            ...order,
+            productName: product ? product.name : "Unknown Product",
+            productDescription: product ? product.description : "",
+          };
+        });
+
+      setOrders(ord);
+      setOrderDetails(ordersData); // Updated state with processed data
     } catch (err) {
       setError(err.response?.data?.message || "Error fetching orders.");
     } finally {
@@ -51,13 +72,11 @@ function ViewUserOrders() {
         <Typography>No orders found.</Typography>
       ) : (
         <List>
-          {orders.map((order) => (
+          {orderDetails.map((order) => (
             <ListItem key={order._id}>
               <ListItemText
                 primary={`Order ID: ${order._id}`}
-                secondary={`Product ID: ${order.productId}, Quantity: ${
-                  order.quantity
-                }, Status: ${order.isCompleted ? "Completed" : "Pending"}`}
+                secondary={`Product Name: ${order.productName}, Quantity: ${order.quantity}, Description: ${order.productDescription}`}
               />
             </ListItem>
           ))}
