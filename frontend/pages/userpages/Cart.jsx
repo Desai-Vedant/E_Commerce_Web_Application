@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
 
 function Cart() {
   const [cartItems, setCartItems] = useState([]);
@@ -35,7 +36,6 @@ function Cart() {
       );
 
       const orders = orderResponse.data.orders || [];
-
       setCartItems(orders);
     } catch (err) {
       setError("Error fetching data. Please try again.");
@@ -54,18 +54,94 @@ function Cart() {
     setTotalCost(total);
   }, [cartItems]);
 
+  // handlePayment Function
+  const handlePayment = async () => {
+    let paymentVerified = false;
+
+    try {
+      const amount = totalCost; // convert to paise
+      const res = await fetch(`http://localhost:3000/payment/order`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          amount,
+        }),
+      });
+
+      const data = await res.json();
+      console.log(data);
+      paymentVerified = await handlePaymentVerify(data.data);
+    } catch (error) {
+      console.log(error);
+    }
+    return paymentVerified; // Return the payment verification status
+  };
+
+  // handlePaymentVerify Function
+  const handlePaymentVerify = async (data) => {
+    return new Promise((resolve) => {
+      const options = {
+        key: import.meta.env.RAZORPAY_KEY_ID,
+        amount: data.amount,
+        currency: data.currency,
+        name: "Shop Zone",
+        description: "Shop Zone Payment",
+        order_id: data.id,
+        handler: async (response) => {
+          console.log("response", response);
+          try {
+            const res = await fetch(`http://localhost:3000/payment/verify`, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await res.json();
+            if (verifyData.message) {
+              toast.success(verifyData.message);
+              resolve(true); // Resolve promise with true on success
+            } else {
+              resolve(false); // Resolve promise with false on failure
+            }
+          } catch (error) {
+            console.log(error);
+            resolve(false); // Resolve promise with false on error
+          }
+        },
+        theme: {
+          color: "#5f63b8",
+        },
+      };
+      const rzp1 = new window.Razorpay(options);
+      rzp1.open();
+    });
+  };
+
   // Place order (update isCompleted for all items in cart)
   const placeOrder = async () => {
     try {
-      for (const item of cartItems) {
-        await axios.post(
-          "http://localhost:3000/order/update",
-          { orderId: item._id, isCompleted: true },
-          { withCredentials: true }
-        );
+      const paymentSuccessful = await handlePayment();
+      if (paymentSuccessful) {
+        for (const item of cartItems) {
+          await axios.post(
+            "http://localhost:3000/order/update",
+            { orderId: item._id, isCompleted: true },
+            { withCredentials: true }
+          );
+        }
+        alert("Order placed successfully!");
+        navigate("/userhome");
+      } else {
+        alert("Payment failed. Please try again.");
       }
-      alert("Order placed successfully!");
-      navigate("/userhome");
     } catch (err) {
       setError("Error placing the order. Please try again.");
     }
