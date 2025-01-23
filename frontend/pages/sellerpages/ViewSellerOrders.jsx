@@ -23,32 +23,10 @@ function ViewSellerOrders() {
           {},
           { withCredentials: true }
         );
-        const orders = orderResponse.data.orders || [];
+        const sellerOrders = orderResponse.data.orders || [];
 
         // Fetch products only if there are orders
-        if (orders.length > 0) {
-          const productResponse = await axios.post(
-            "http://localhost:3000/product/view",
-            {},
-            { withCredentials: true }
-          );
-          const products = productResponse.data.products || [];
-
-          // Enrich orders with product details
-          const enrichedOrders = orders
-            .filter((order) => order.isCompleted)
-            .map((order) => {
-              const product = products.find((p) => p._id === order.productId);
-              return {
-                ...order,
-                productName: product ? product.name : "Unknown Product",
-                productDescription: product ? product.description : "",
-              };
-            });
-
-          const sellerOrders = enrichedOrders.filter(
-            (order) => order.productName != "Unknown Product"
-          );
+        if (orders) {
           setOrders(sellerOrders);
         } else {
           setOrders([]);
@@ -58,6 +36,7 @@ function ViewSellerOrders() {
           err.response?.data?.message ||
             "An error occurred while fetching data."
         );
+        console.log(err);
       } finally {
         setLoading(false);
       }
@@ -84,8 +63,8 @@ function ViewSellerOrders() {
           {orders.map((order) => (
             <ListItem key={order._id}>
               <ListItemText
-                primary={`Order ID: ${order._id} - ${order.productName}`}
-                secondary={`Quantity: ${order.quantity} | ${order.productDescription}`}
+                primary={`Order ID: ${order.orderId} - ${order.productName}`}
+                secondary={`Quantity: ${order.orderQuantity} | Details: ${order.productDetails} | Total price: ${order.totalPrice}`}
               />
             </ListItem>
           ))}

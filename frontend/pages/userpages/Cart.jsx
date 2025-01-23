@@ -18,7 +18,6 @@ import { useNavigate } from "react-router-dom";
 
 function Cart() {
   const [cartItems, setCartItems] = useState([]);
-  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalCost, setTotalCost] = useState(0);
@@ -29,44 +28,15 @@ function Cart() {
   // Fetch cart and product data
   const fetchData = async () => {
     try {
-      const [orderResponse, productResponse] = await Promise.all([
-        axios.post(
-          "http://localhost:3000/order/view",
-          {},
-          { withCredentials: true }
-        ),
-        axios.post(
-          "http://localhost:3000/product/view",
-          {},
-          { withCredentials: true }
-        ),
-      ]);
-
-      const orders = orderResponse.data.orders.filter(
-        (order) => !order.isCompleted
+      const orderResponse = await axios.post(
+        "http://localhost:3000/order/view",
+        { orderStatus: false },
+        { withCredentials: true }
       );
-      const productsData = productResponse.data.products;
 
-      // Match product details with cart items
-      const cartDetails = orders.map((order) => {
-        const product = productsData.find(
-          (product) => product._id === order.productId
-        );
-        return {
-          ...order,
-          productName: product?.name || "Unknown Product",
-          description: product?.description || "No description available",
-          price: product?.price || 0,
-          totalPrice: (product?.price || 0) * order.quantity,
-        };
-      });
+      const orders = orderResponse.data.orders || [];
 
-      setCartItems(cartDetails);
-      setProducts(productsData);
-
-      // Calculate total cost
-      const total = cartDetails.reduce((sum, item) => sum + item.totalPrice, 0);
-      setTotalCost(total);
+      setCartItems(orders);
     } catch (err) {
       setError("Error fetching data. Please try again.");
     } finally {
@@ -77,6 +47,12 @@ function Cart() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    // Calculate total cost whenever cartItems changes
+    const total = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    setTotalCost(total);
+  }, [cartItems]);
 
   // Place order (update isCompleted for all items in cart)
   const placeOrder = async () => {
@@ -142,7 +118,7 @@ function Cart() {
             <ListItem>
               <ListItemText
                 primary={item.productName}
-                secondary={`${item.description} - Price: Rs.${item.price} x Quantity: ${item.quantity}`}
+                secondary={`${item.productDetails} - Price: Rs.${item.productPrice} x Quantity: ${item.orderQuantity}`}
               />
               <Typography>Total: Rs.{item.totalPrice.toFixed(2)}</Typography>
               <Button

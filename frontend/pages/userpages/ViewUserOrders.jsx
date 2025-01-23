@@ -10,7 +10,6 @@ import {
 import axios from "axios";
 
 function ViewUserOrders() {
-  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [orderDetails, setOrderDetails] = useState([]);
@@ -19,30 +18,11 @@ function ViewUserOrders() {
     try {
       const orderResponse = await axios.post(
         "http://localhost:3000/order/view",
-        {},
+        { orderStatus: true },
         { withCredentials: true }
       );
-      const ord = orderResponse.data.orders || [];
+      const ordersData = orderResponse.data.orders || [];
 
-      const productResponse = await axios.post(
-        "http://localhost:3000/product/view",
-        {},
-        { withCredentials: true }
-      );
-      const prod = productResponse.data.products || [];
-
-      const ordersData = ord
-        .filter((order) => order.isCompleted) // Fixed filter
-        .map((order) => {
-          const product = prod.find((p) => p._id === order.productId);
-          return {
-            ...order,
-            productName: product ? product.name : "Unknown Product",
-            productDescription: product ? product.description : "",
-          };
-        });
-
-      setOrders(ord);
       setOrderDetails(ordersData); // Updated state with processed data
     } catch (err) {
       setError(err.response?.data?.message || "Error fetching orders.");
@@ -68,15 +48,15 @@ function ViewUserOrders() {
       <Typography variant="h4" gutterBottom>
         Your Orders
       </Typography>
-      {orders.length === 0 ? (
+      {orderDetails.length === 0 ? (
         <Typography>No orders found.</Typography>
       ) : (
         <List>
           {orderDetails.map((order) => (
             <ListItem key={order._id}>
               <ListItemText
-                primary={`Order ID: ${order._id}`}
-                secondary={`Product Name: ${order.productName}, Quantity: ${order.quantity}, Description: ${order.productDescription}`}
+                primary={`Order ID: ${order.orderId} | Product Name: ${order.productName} | Price: ${order.productPrice}`}
+                secondary={`Description: ${order.productDetails} | Quantity: ${order.orderQuantity} | Total price : ${order.totalPrice}`}
               />
             </ListItem>
           ))}

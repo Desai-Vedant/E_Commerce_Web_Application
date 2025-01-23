@@ -1,4 +1,6 @@
 import Order from "../models/Order.js";
+import mongoose from "mongoose";
+const { ObjectId } = mongoose.Types;
 
 // Add a new Order
 export const addOrder = async (req, res) => {
@@ -90,15 +92,111 @@ export const deleteOrder = async (req, res) => {
 export const viewOrder = async (req, res) => {
   try {
     const userId = req.user.userId; // Assumes req.user is populated by an authentication middleware
+    const { orderStatus } = req.body;
 
     let orders;
 
     if (req.user.isSeller) {
-      orders = await Order.find({});
+      const sellerId = new ObjectId(userId);
+      orders = await Order.aggregate([
+        {
+          $lookup: {
+            from: "products",
+            let: { productId: { $toString: "$productId" } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$productId"],
+                  },
+                },
+              },
+            ],
+            as: "productdetails",
+          },
+        },
+        {
+          $addFields: {
+            productdetails: { $arrayElemAt: ["$productdetails", 0] },
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            let: { sellerId: { $toString: "$productdetails.sellerId" } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$sellerId"],
+                  },
+                },
+              },
+            ],
+            as: "sellerdetails",
+          },
+        },
+        {
+          $addFields: {
+            sellerdetails: { $arrayElemAt: ["$sellerdetails", 0] },
+          },
+        },
+        {
+          $match: {
+            "sellerdetails._id": sellerId,
+          },
+        },
+        {
+          $project: {
+            orderId: "$_id",
+            productName: "$productdetails.name",
+            productDetails: "$productdetails.description",
+            orderQuantity: "$quantity",
+            totalPrice: { $multiply: ["$quantity", "$productdetails.price"] },
+          },
+        },
+      ]);
     } else {
-      orders = await Order.find({ userId });
+      orders = await Order.aggregate([
+        {
+          $match: {
+            userId: userId,
+            isCompleted: orderStatus,
+          },
+        },
+        {
+          $lookup: {
+            from: "products",
+            let: { productId: { $toString: "$productId" } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$productId"],
+                  },
+                },
+              },
+            ],
+            as: "productdetails",
+          },
+        },
+        {
+          $addFields: {
+            product: { $arrayElemAt: ["$productdetails", 0] },
+          },
+        },
+        {
+          $project: {
+            orderId: "$_id",
+            productName: "$product.name",
+            productDetails: "$product.description",
+            productPrice: "$product.price",
+            orderQuantity: "$quantity",
+            totalPrice: { $multiply: ["$quantity", "$product.price"] },
+          },
+        },
+      ]);
     }
-
     res.status(200).json({ message: "Orders retrieved successfully.", orders });
   } catch (error) {
     res
